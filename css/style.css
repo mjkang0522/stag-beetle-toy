@@ -23,6 +23,7 @@ body {
     top: 50%;
 
     transform: translate(-50%, -50%);
+    z-index: 2;
 
     cursor: pointer;
     touch-action: manipulation;
@@ -34,4 +35,36 @@ body {
 
     user-select: none;
     -webkit-user-drag: none;
+}
+
+#jelly {
+    position: absolute;
+
+    left: 50%;
+    top: 78%;
+
+    padding: 0;
+    border: 0;
+    background: transparent;
+    appearance: none;
+    -webkit-appearance: none;
+    transform: translate(-50%, -50%);
+    z-index: 3;
+
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+#jelly.dragging {
+    cursor: grabbing;
+}
+
+#jelly_image {
+    width: clamp(130px, 25vw, 349px);
+    display: block;
+
+    user-select: none;
+    -webkit-user-drag: none;
+    pointer-events: none;
 }

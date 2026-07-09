@@ -61,6 +61,8 @@ const animationSettings = {
 
 const beetleElement = document.getElementById("beetle");
 const beetleImageElement = document.getElementById("beetle_image");
+const gameScreenElement = document.getElementById("game_screen");
+const jellyElement = document.getElementById("jelly");
 
 // ==============================
 // 사슴벌레 객체
@@ -72,6 +74,14 @@ const beetle = {
     state: "idle",
     direction: "right",
     currentFrame: 1
+};
+
+const jelly = {
+    x: 50,
+    y: 78,
+    isDragging: false,
+    dragOffsetX: 0,
+    dragOffsetY: 0
 };
 
 // ==============================
@@ -102,6 +112,11 @@ function updateBeetleView() {
     const imageFileName = frameList[beetle.currentFrame - 1];
 
     beetleImageElement.src = beetleImageFolder + imageFileName;
+}
+
+function updateJellyView() {
+    jellyElement.style.left = jelly.x + "%";
+    jellyElement.style.top = jelly.y + "%";
 }
 
 // ==============================
@@ -320,8 +335,101 @@ beetleElement.addEventListener("pointerdown", function(event) {
 });
 
 // ==============================
+// 젤리 드래그
+// ==============================
+
+function getJellyPositionFromPointer(event) {
+    const screenRect = gameScreenElement.getBoundingClientRect();
+    const jellyRect = jellyElement.getBoundingClientRect();
+    const minX = jellyRect.width / 2;
+    const minY = jellyRect.height / 2;
+    const maxX = screenRect.width - minX;
+    const maxY = screenRect.height - minY;
+
+    let pointerX = event.clientX - screenRect.left - jelly.dragOffsetX;
+    let pointerY = event.clientY - screenRect.top - jelly.dragOffsetY;
+
+    if (pointerX < minX) {
+        pointerX = minX;
+    }
+
+    if (pointerY < minY) {
+        pointerY = minY;
+    }
+
+    if (pointerX > maxX) {
+        pointerX = maxX;
+    }
+
+    if (pointerY > maxY) {
+        pointerY = maxY;
+    }
+
+    return {
+        x: pointerX / screenRect.width * 100,
+        y: pointerY / screenRect.height * 100
+    };
+}
+
+function startJellyDrag(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const jellyRect = jellyElement.getBoundingClientRect();
+
+    jelly.isDragging = true;
+    jelly.dragOffsetX = event.clientX - (jellyRect.left + jellyRect.width / 2);
+    jelly.dragOffsetY = event.clientY - (jellyRect.top + jellyRect.height / 2);
+
+    jellyElement.classList.add("dragging");
+    jellyElement.setPointerCapture(event.pointerId);
+}
+
+function moveJelly(event) {
+    if (!jelly.isDragging) {
+        return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const nextPosition = getJellyPositionFromPointer(event);
+
+    jelly.x = nextPosition.x;
+    jelly.y = nextPosition.y;
+
+    updateJellyView();
+}
+
+function stopJellyDrag(event) {
+    if (!jelly.isDragging) {
+        return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    jelly.isDragging = false;
+    jelly.dragOffsetX = 0;
+    jelly.dragOffsetY = 0;
+
+    jellyElement.classList.remove("dragging");
+
+    if (jellyElement.hasPointerCapture(event.pointerId)) {
+        jellyElement.releasePointerCapture(event.pointerId);
+    }
+}
+
+jellyElement.addEventListener("pointerdown", startJellyDrag);
+jellyElement.addEventListener("lostpointercapture", stopJellyDrag);
+document.addEventListener("pointermove", moveJelly);
+document.addEventListener("pointerup", stopJellyDrag);
+document.addEventListener("pointercancel", stopJellyDrag);
+
+// ==============================
 // 시작
 // ==============================
 
 updateBeetleView();
+updateJellyView();
 startIdleState();
