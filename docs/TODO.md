@@ -2,10 +2,12 @@
 
 ## Sprint 0: 먹이 주기 MVP
 
-- [ ] 젤리 표시 방식 정하기
-- [ ] Jelly Drag 구현
-- [ ] 사슴벌레가 젤리 방향으로 Follow 하도록 구현
-- [ ] Follow 중 기존 idle/walk 타이머 정리 검증
+- [x] 젤리 표시 방식 정하기
+- [x] Jelly Drag 구현
+- [x] 사슴벌레가 젤리 방향으로 Follow 하도록 구현
+- [x] Follow 중 기존 idle/walk 타이머 정리 검증
+- [x] Follow 이동 방향에 따른 좌우/상하 플립 구현
+- [x] 젤리 드래그 중 레이어 보정
 - [ ] Eat(Open) 1회 재생 연결
 - [ ] Eat(Chew) 2프레임 루프 연결
 - [ ] 먹기 완료 후 Happy 애니메이션 연결

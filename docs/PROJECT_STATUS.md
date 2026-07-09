@@ -1,6 +1,6 @@
 # 프로젝트 진행 상황
 
-마지막 업데이트: 2026-07-08
+마지막 업데이트: 2026-07-09
 
 ## 프로젝트 목표
 
@@ -40,15 +40,22 @@
 - Idle 중 랜덤 걷기 전환
 - Walk 상태에서 퍼센트 좌표 기반 이동
 - `requestAnimationFrame` 기반 이동 보간
-- 이동 방향에 따른 좌우 반전
+- 이동 방향에 따른 좌우/상하 플립
 - 사슴벌레 터치 입력 처리
 - Touch 반응 후 Happy 애니메이션 연결
 - 상태 전환 시 기존 타이머와 이동 프레임 정리
+- 젤리 표시와 드래그 입력 처리
+- 젤리 드래그 중 레이어를 가장 앞으로 보정
+- 젤리 드롭 위치를 목표 좌표로 저장
+- Follow 상태에서 사슴벌레가 젤리 근처까지 천천히 이동
+- Follow 중 Walk 프레임 재사용
+- Follow 도착 후 Idle 상태 복귀
 
 ## 현재 구현된 애니메이션
 
 - Idle: 기본 대기 이미지와 깜빡임 애니메이션
 - Walk: 2프레임 반복 걷기와 랜덤 이동
+- Follow: Walk 2프레임을 재사용하는 젤리 방향 이동
 - Touch: 터치했을 때 3프레임 왕복 반응
 - Happy: Touch 뒤에 이어지는 3프레임 왕복 반응
 
@@ -101,6 +108,8 @@ css/style.css
 - `#game_screen`: 전체 화면 배경
 - `#beetle`: 절대 위치, 포인터 입력 대상
 - `#beetle_image`: 이미지 크기와 드래그 방지
+- `#jelly`: 젤리 위치 컨테이너와 드래그 입력 대상
+- `#jelly_image`: 젤리 이미지 크기와 드래그 방지
 
 ```text
 js/main.js
@@ -108,20 +117,25 @@ js/main.js
 
 - `beetleImageFolder`: 사슴벌레 이미지 경로
 - `beetleFrames`: 상태별 이미지 파일 목록
-- `animationSettings`: 일회성 애니메이션 규칙
-- `beetle`: 현재 위치, 상태, 방향, 프레임
+- `animationSettings`: 프레임 순서와 지연 시간 규칙
+- `LAYERS`: 기본 레이어와 드래그 중 젤리 레이어 값
+- `beetle`: 현재 위치, 상태, 좌우/상하 플립, 프레임
+- `jelly`: 현재 위치, 목표 위치, 드래그 상태
 - `clearTimers()`: 기존 타이머와 이동 프레임 정리
 - `playAnimation()`: 정해진 프레임 순서 재생
+- `setJellyDraggingLayer()`: 젤리 드래그 시작/종료에 맞춰 레이어 전환
 - `startIdleState()`: Idle 진입
 - `startWalkState()`: Walk 진입
+- `startFollowState()`: 젤리 목표 위치를 향한 Follow 진입
 - `startTouchReaction()`: Touch와 Happy 반응 연결
 
 ## 현재 구현된 상태
 
-`beetle.state`에 실제로 들어가는 상태는 다음 네 가지다.
+`beetle.state`에 실제로 들어가는 상태는 다음 다섯 가지다.
 
 - `idle`
 - `walk`
+- `follow`
 - `touch`
 - `happy`
 
@@ -133,22 +147,33 @@ stateDiagram-v2
     idle --> idle: idleBlink
     idle --> walk: random
     walk --> idle: move complete
+    idle --> follow: jelly drop
+    walk --> follow: jelly drop
+    follow --> idle: arrive near jelly
     idle --> touch: pointerdown
     walk --> touch: pointerdown
+    follow --> touch: pointerdown
     touch --> happy: animation complete
     happy --> idle: animation complete
 ```
 
 `idleBlink`는 별도 상태라기보다 `idle` 프레임을 사용하는 짧은 애니메이션이다.
 
+## 현재 방향과 레이어 규칙
+
+- 원본 사슴벌레 이미지는 왼쪽 방향 기준이다.
+- 오른쪽 이동 시 `flipX`를 `-1`, 왼쪽 이동 시 `flipX`를 `1`로 둔다.
+- 아래쪽 이동 시 `flipY`를 `-1`, 위쪽 이동 시 `flipY`를 `1`로 둔다.
+- 화면 적용은 `translate(-50%, -50%) scale(flipX, flipY)` 형태로 한곳에서 조합한다.
+- 기본 레이어 순서는 배경, 젤리, 사슴벌레다.
+- 젤리를 드래그하는 동안에는 젤리만 가장 앞으로 올리고, 드래그가 끝나면 기본 레이어로 되돌린다.
+
 ## 다음 개발 목표
 
 가장 가까운 목표는 젤리 먹이 주기 MVP를 만드는 것이다.
 
-1. 젤리 표시와 드래그 입력 추가
-2. 사슴벌레가 젤리 쪽으로 이동하는 Follow 흐름 추가
-3. Eat(Open) 1회 재생 연결
-4. Eat(Chew) 반복 재생 연결
-5. 먹기 완료 후 Happy 또는 Idle로 복귀
-6. 모바일 화면에서 크기와 터치 안정성 확인
-7. 이미지 프리로드와 접근성 개선 검토
+1. Eat(Open) 1회 재생 연결
+2. Eat(Chew) 반복 재생 연결
+3. 먹기 완료 후 Happy 또는 Idle로 복귀
+4. 모바일 화면에서 크기와 터치 안정성 확인
+5. 이미지 프리로드와 접근성 개선 검토

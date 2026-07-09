@@ -1,6 +1,6 @@
 # 프로젝트 분석 문서
 
-마지막 업데이트: 2026-07-08
+마지막 업데이트: 2026-07-09
 
 이 문서는 프로젝트의 상세 분석을 한곳에 길게 쌓기보다, 장기 관리 문서들이 어디에 있는지 안내하는 역할을 한다. 이전에 이 문서에 있던 상세 상태, 애니메이션, 리소스 설명은 아래 문서로 나누어 정리했다.
 
@@ -24,14 +24,15 @@ const beetle = {
     x: 50,
     y: 50,
     state: "idle",
-    direction: "right",
+    flipX: -1,
+    flipY: 1,
     currentFrame: 1
 };
 ```
 
-현재 실제 상태는 `idle`, `walk`, `touch`, `happy`이며, 화면 갱신은 `updateBeetleView()`를 통해 이루어진다. `clearTimers()`는 idle 타이머, 프레임 타이머, 이동 애니메이션 프레임을 정리하는 중심 함수다.
+현재 실제 상태는 `idle`, `walk`, `follow`, `touch`, `happy`이며, 화면 갱신은 `updateBeetleView()`를 통해 이루어진다. 사슴벌레 방향은 `flipX`, `flipY`로 관리하고, 평소에는 사슴벌레가 젤리보다 앞에 보인다. 젤리를 드래그하는 동안에는 `setJellyDraggingLayer()`가 젤리를 가장 앞으로 올리고, 드래그가 끝나면 다시 기본 레이어로 되돌린다. `clearTimers()`는 idle 타이머, 프레임 타이머, 이동 애니메이션 프레임을 정리하는 중심 함수다.
 
-현재 가장 가까운 확장 지점은 젤리 먹이 주기다. 관련 애셋인 `jelly.png`, `beetle_eat_oepn_*.png`, `beetle_eat_chew_*.png`는 이미 준비되어 있지만 아직 코드 상태에는 연결되지 않았다.
+젤리는 화면에 표시되고 드래그할 수 있으며, 드래그해서 놓으면 사슴벌레가 `follow` 상태로 젤리 근처까지 이동한다. 관련 먹기 애셋인 `beetle_eat_oepn_*.png`, `beetle_eat_chew_*.png`는 아직 먹기 상태에는 연결되지 않았다.
 
 ## 관리 방침
 

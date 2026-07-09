@@ -18,6 +18,11 @@ const beetleFrames = {
         "beetle_walk_02.png"
     ],
 
+    follow: [
+        "beetle_walk_01.png",
+        "beetle_walk_02.png"
+    ],
+
     touch: [
         "beetle_touch_01.png",
         "beetle_touch_02.png",
@@ -40,6 +45,18 @@ const animationSettings = {
         state: "idle",
         frameOrder: [2, 3, 2, 1],
         frameDelay: 100
+    },
+
+    walk: {
+        state: "walk",
+        frameOrder: [1, 2],
+        frameDelay: 180
+    },
+
+    follow: {
+        state: "follow",
+        frameOrder: [1, 2],
+        frameDelay: 180
     },
 
     touch: {
@@ -65,6 +82,17 @@ const gameScreenElement = document.getElementById("game_screen");
 const jellyElement = document.getElementById("jelly");
 
 // ==============================
+// 레이어 설정
+// ==============================
+
+const LAYERS = {
+    background: 0,
+    jelly: 3,
+    beetle: 4,
+    draggingJelly: 10
+};
+
+// ==============================
 // 사슴벌레 객체
 // ==============================
 
@@ -72,13 +100,16 @@ const beetle = {
     x: 50,
     y: 50,
     state: "idle",
-    direction: "right",
+    flipX: -1,
+    flipY: 1,
     currentFrame: 1
 };
 
 const jelly = {
     x: 50,
     y: 78,
+    targetX: 50,
+    targetY: 78,
     isDragging: false,
     dragOffsetX: 0,
     dragOffsetY: 0
@@ -99,14 +130,7 @@ let moveAnimationId = null;
 function updateBeetleView() {
     beetleElement.style.left = beetle.x + "%";
     beetleElement.style.top = beetle.y + "%";
-
-    // 현재 사슴벌레 원본 이미지는 왼쪽을 바라보고 있다.
-    // 그래서 오른쪽으로 이동할 때만 좌우 반전한다.
-    if (beetle.direction === "right") {
-        beetleElement.style.transform = "translate(-50%, -50%) scaleX(-1)";
-    } else {
-        beetleElement.style.transform = "translate(-50%, -50%) scaleX(1)";
-    }
+    beetleElement.style.transform = "translate(-50%, -50%) scale(" + beetle.flipX + ", " + beetle.flipY + ")";
 
     const frameList = beetleFrames[beetle.state];
     const imageFileName = frameList[beetle.currentFrame - 1];
@@ -117,6 +141,11 @@ function updateBeetleView() {
 function updateJellyView() {
     jellyElement.style.left = jelly.x + "%";
     jellyElement.style.top = jelly.y + "%";
+}
+
+function setJellyDraggingLayer(isDragging) {
+    beetleElement.style.zIndex = LAYERS.beetle;
+    jellyElement.style.zIndex = isDragging ? LAYERS.draggingJelly : LAYERS.jelly;
 }
 
 // ==============================
@@ -221,17 +250,31 @@ function startWalkState() {
     const targetX = getRandomTargetX(startX);
     const targetY = getRandomTargetY(startY);
 
-    updateBeetleDirection(startX, targetX);
+    updateBeetleFlip(startX, startY, targetX, targetY);
 
     startWalkAnimation();
     moveBeetleTo(startX, startY, targetX, targetY);
 }
 
-function updateBeetleDirection(startX, targetX) {
-    if (targetX < startX) {
-        beetle.direction = "left";
-    } else {
-        beetle.direction = "right";
+function updateBeetleFlip(startX, startY, targetX, targetY) {
+    const directionThreshold = 0.1;
+    const dx = targetX - startX;
+    const dy = targetY - startY;
+
+    if (dx > directionThreshold) {
+        beetle.flipX = -1;
+    }
+
+    if (dx < -directionThreshold) {
+        beetle.flipX = 1;
+    }
+
+    if (dy > directionThreshold) {
+        beetle.flipY = -1;
+    }
+
+    if (dy < -directionThreshold) {
+        beetle.flipY = 1;
     }
 }
 
@@ -270,17 +313,28 @@ function getRandomTargetY(currentY) {
 }
 
 function startWalkAnimation() {
-    const frameDelay = 180;
+    playLoopAnimation(animationSettings.walk);
+}
+
+function playLoopAnimation(animationSetting) {
+    beetle.state = animationSetting.state;
+    beetle.currentFrame = animationSetting.frameOrder[0];
+
+    updateBeetleView();
+
+    let frameIndex = 0;
 
     frameTimer = setInterval(function() {
-        if (beetle.currentFrame === 1) {
-            beetle.currentFrame = 2;
-        } else {
-            beetle.currentFrame = 1;
+        frameIndex = frameIndex + 1;
+
+        if (frameIndex >= animationSetting.frameOrder.length) {
+            frameIndex = 0;
         }
 
+        beetle.currentFrame = animationSetting.frameOrder[frameIndex];
+
         updateBeetleView();
-    }, frameDelay);
+    }, animationSetting.frameDelay);
 }
 
 function moveBeetleTo(startX, startY, targetX, targetY) {
@@ -301,6 +355,73 @@ function moveBeetleTo(startX, startY, targetX, targetY) {
         updateBeetleView();
 
         if (progress < 1) {
+            moveAnimationId = requestAnimationFrame(move);
+        } else {
+            startIdleState();
+        }
+    }
+
+    moveAnimationId = requestAnimationFrame(move);
+}
+
+// ==============================
+// Follow 상태
+// ==============================
+
+function startFollowState() {
+    clearTimers();
+
+    jelly.targetX = jelly.x;
+    jelly.targetY = jelly.y;
+
+    const startX = beetle.x;
+    const startY = beetle.y;
+    const targetX = jelly.targetX;
+    const targetY = jelly.targetY;
+
+    updateBeetleFlip(startX, startY, targetX, targetY);
+
+    const distanceToJelly = getDistance(startX, startY, targetX, targetY);
+    const arriveDistance = 7;
+
+    if (distanceToJelly <= arriveDistance) {
+        startIdleState();
+        return;
+    }
+
+    playLoopAnimation(animationSettings.follow);
+    moveBeetleToJelly(startX, startY, targetX, targetY, arriveDistance);
+}
+
+function getDistance(startX, startY, targetX, targetY) {
+    const distanceX = targetX - startX;
+    const distanceY = targetY - startY;
+
+    return Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+}
+
+function moveBeetleToJelly(startX, startY, targetX, targetY, arriveDistance) {
+    const distanceToJelly = getDistance(startX, startY, targetX, targetY);
+    const followSpeed = 8;
+    const moveDuration = distanceToJelly / followSpeed * 1000;
+    const startTime = performance.now();
+
+    function move(currentTime) {
+        const elapsedTime = currentTime - startTime;
+        let progress = elapsedTime / moveDuration;
+
+        if (progress > 1) {
+            progress = 1;
+        }
+
+        beetle.x = startX + (targetX - startX) * progress;
+        beetle.y = startY + (targetY - startY) * progress;
+
+        updateBeetleView();
+
+        const remainingDistance = getDistance(beetle.x, beetle.y, targetX, targetY);
+
+        if (remainingDistance > arriveDistance && progress < 1) {
             moveAnimationId = requestAnimationFrame(move);
         } else {
             startIdleState();
@@ -382,6 +503,7 @@ function startJellyDrag(event) {
     jelly.dragOffsetY = event.clientY - (jellyRect.top + jellyRect.height / 2);
 
     jellyElement.classList.add("dragging");
+    setJellyDraggingLayer(true);
     jellyElement.setPointerCapture(event.pointerId);
 }
 
@@ -402,6 +524,14 @@ function moveJelly(event) {
 }
 
 function stopJellyDrag(event) {
+    finishJellyDrag(event, true);
+}
+
+function cancelJellyDrag(event) {
+    finishJellyDrag(event, false);
+}
+
+function finishJellyDrag(event, shouldStartFollow) {
     if (!jelly.isDragging) {
         return;
     }
@@ -414,9 +544,14 @@ function stopJellyDrag(event) {
     jelly.dragOffsetY = 0;
 
     jellyElement.classList.remove("dragging");
+    setJellyDraggingLayer(false);
 
     if (jellyElement.hasPointerCapture(event.pointerId)) {
         jellyElement.releasePointerCapture(event.pointerId);
+    }
+
+    if (shouldStartFollow) {
+        startFollowState();
     }
 }
 
@@ -424,7 +559,7 @@ jellyElement.addEventListener("pointerdown", startJellyDrag);
 jellyElement.addEventListener("lostpointercapture", stopJellyDrag);
 document.addEventListener("pointermove", moveJelly);
 document.addEventListener("pointerup", stopJellyDrag);
-document.addEventListener("pointercancel", stopJellyDrag);
+document.addEventListener("pointercancel", cancelJellyDrag);
 
 // ==============================
 // 시작
@@ -432,4 +567,5 @@ document.addEventListener("pointercancel", stopJellyDrag);
 
 updateBeetleView();
 updateJellyView();
+setJellyDraggingLayer(false);
 startIdleState();

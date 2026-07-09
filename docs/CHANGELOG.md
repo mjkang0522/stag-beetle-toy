@@ -59,3 +59,15 @@
 - `PROJECT_STATUS.md`, `CHANGELOG.md`, `TODO.md`, `ANIMATION_GUIDE.md`, `DEVELOPMENT_RULE.md`를 추가했다.
 - GitHub 첫 화면용 `README.md`를 추가했다.
 - 기존 `PROJECT_ANALYSIS.md`를 중복이 적은 문서 안내와 분석 요약으로 정리했다.
+
+## 2026-07-09
+
+### Sprint 0 - Day 6 Jelly Follow
+
+- 젤리를 드래그해서 놓으면 현재 젤리 위치를 목표 좌표로 저장하도록 했다.
+- `follow` 상태를 추가하고, Follow 중에는 Walk 프레임을 반복 재생하도록 했다.
+- 사슴벌레가 젤리 방향으로 천천히 이동하고, 젤리 근처에 도착하면 Idle로 돌아가도록 했다.
+- Follow 시작 시 기존 idle, walk, frame timer, 이동 프레임을 정리하도록 기존 `clearTimers()` 흐름을 재사용했다.
+- 사슴벌레 방향 값을 `flipX`, `flipY`로 분리해 좌우 이동과 상하 이동 플립을 함께 표현하도록 했다.
+- 젤리 드래그 중에는 젤리가 사슴벌레보다 앞에 보이고, 드래그가 끝나면 사슴벌레가 다시 앞에 보이도록 레이어를 보정했다.
+- Eat(Open), Eat(Chew), 젤리 먹기 완료 흐름은 아직 연결하지 않았다.
