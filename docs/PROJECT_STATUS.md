@@ -43,6 +43,10 @@
 - 이동 방향에 따른 좌우/상하 플립
 - 사슴벌레 터치 입력 처리
 - Touch 반응 후 Happy 애니메이션 연결
+- 사슴벌레를 잡고 있는 동안 Touch 애니메이션 반복 재생
+- 짧은 터치, 긴 터치, 드래그를 같은 잡기 입력으로 처리
+- 사슴벌레를 잡고 있는 동안 Idle/Walk/Follow 중지와 최상단 레이어 보정
+- 사슴벌레를 놓은 위치 저장 후 Happy 재생과 Idle 복귀
 - 상태 전환 시 기존 타이머와 이동 프레임 정리
 - 젤리 표시와 드래그 입력 처리
 - 젤리 드래그 중 레이어를 가장 앞으로 보정
@@ -57,7 +61,7 @@
 - 먹기 완료 후 Happy 1회 재생
 - 빈 접시 opacity 깜빡임 후 숨김
 - 새 젤리 화면 위쪽 낙하 재등장
-- 먹이 주기 중 사슴벌레 Touch 입력과 젤리 드래그 입력 잠금
+- 먹이 주기 중 사슴벌레 입력과 젤리 드래그 입력 잠금
 - 먹이 주기 완료 후 젤리 드래그 재활성화와 Idle 복귀
 
 ## 현재 구현된 애니메이션
@@ -65,7 +69,7 @@
 - Idle: 기본 대기 이미지와 깜빡임 애니메이션
 - Walk: 2프레임 반복 걷기와 랜덤 이동
 - Follow: Walk 2프레임을 재사용하는 젤리 방향 이동
-- Touch: 터치했을 때 3프레임 왕복 반응
+- Touch: 사슴벌레를 잡고 있는 동안 3프레임 왕복 반응 반복
 - Happy: Touch 뒤에 이어지는 3프레임 왕복 반응
 - Eat(Open): Follow 도착 후 4프레임 1회 재생
 - Eat(Chew): 1, 2번째 먹기 단계에서 2프레임 루프를 4회 재생
@@ -129,11 +133,14 @@ js/main.js
 - `animationSettings`: 프레임 순서와 지연 시간 규칙
 - `LAYERS`: 기본 레이어와 드래그 중 젤리 레이어 값
 - `beetle`: 현재 위치, 상태, 좌우/상하 플립, 프레임
+- `beetleInteraction`: 사슴벌레 포인터 입력, 잡기 상태, 드래그 오프셋
 - `jelly`: 현재 위치, 목표 위치, 이미지 단계, 표시 상태, 입력 잠금, 드래그 상태
 - `feedingLoop`: 먹이 주기 루프 중복 실행 방지 상태
 - `clearTimers()`: 기존 타이머와 이동 프레임 정리
 - `playAnimation()`: 정해진 프레임 순서 재생
+- `updateObjectLayers()`: 사슴벌레/젤리 드래그 상태에 맞춰 레이어 갱신
 - `setJellyDraggingLayer()`: 젤리 드래그 시작/종료에 맞춰 레이어 전환
+- `setBeetleHoldingLayer()`: 사슴벌레 잡기 시작/종료에 맞춰 레이어 전환
 - `startIdleState()`: Idle 진입
 - `startWalkState()`: Walk 진입
 - `startFollowState()`: 젤리 목표 위치를 향한 Follow 진입
@@ -141,7 +148,7 @@ js/main.js
 - `playBiteStep()`: Eat(Open) 재생, 젤리 이미지 변경, 다음 씹기/단계 연결
 - `playChewRepeats()`: Eat(Chew) 4회 반복 재생
 - `dropNewJelly()`: 새 젤리를 화면 위쪽에서 초기 위치로 낙하
-- `startTouchReaction()`: Touch와 Happy 반응 연결
+- `startBeetleInteraction()`: 잡고 있는 동안 Touch 반복, 포인터 이동, Happy 반응 연결
 
 ## 현재 구현된 상태
 
@@ -172,7 +179,8 @@ stateDiagram-v2
     idle --> touch: pointerdown
     walk --> touch: pointerdown
     follow --> touch: pointerdown
-    touch --> happy: animation complete
+    touch --> touch: holding or moving pointer
+    touch --> happy: pointerup
     happy --> idle: animation or feeding complete
 ```
 
@@ -186,6 +194,7 @@ stateDiagram-v2
 - 화면 적용은 `translate(-50%, -50%) scale(flipX, flipY)` 형태로 한곳에서 조합한다.
 - 기본 레이어 순서는 배경, 젤리, 사슴벌레다.
 - 젤리를 드래그하는 동안에는 젤리만 가장 앞으로 올리고, 드래그가 끝나면 기본 레이어로 되돌린다.
+- 사슴벌레를 잡고 있는 동안에는 사슴벌레를 가장 앞으로 올리고, 놓은 뒤 Happy가 시작되기 전에 기본 레이어로 되돌린다.
 
 ## 다음 개발 목표
 

@@ -26,7 +26,12 @@ body {
     z-index: 4;
 
     cursor: pointer;
-    touch-action: manipulation;
+    touch-action: none;
+    user-select: none;
+}
+
+#beetle.dragging {
+    cursor: grabbing;
 }
 
 #beetle_image {

@@ -93,3 +93,23 @@
 - 1, 2번째 먹기 단계에서는 Eat(Open) 후 젤리 이미지를 바꾸고 Eat(Chew)를 4회 반복하도록 했다.
 - 마지막 먹기 단계에서는 Eat(Open) 후 `jelly_empty_plate.png`로 바꾸고 Eat(Chew) 없이 Happy로 넘어가도록 했다.
 - 빈 접시 깜빡임, 새 젤리 낙하, 드래그 재활성화, Idle 복귀 흐름은 기존 구현을 유지했다.
+
+### Beetle Drag And Drop
+
+- 기존 Touch -> Happy -> Idle 흐름을 유지하면서 사슴벌레 Drag & Drop 입력을 추가했다.
+- 사슴벌레 드래그 중에는 Idle Blink, Walk, Follow 타이머를 정리하고 사슴벌레를 가장 앞 레이어로 올리도록 했다.
+- 드래그 중 사슴벌레 위치를 포인터 좌표에 맞춰 갱신하고, 화면 밖으로 완전히 나가지 않도록 이동 범위를 제한했다.
+- 드롭 후에는 현재 위치를 저장한 뒤 Happy를 1회 재생하고 Idle로 돌아가도록 했다.
+- `happy`, `eatOpen`, `eatChew`, 먹이 주기 루프, 새 젤리 낙하, 젤리 드래그 중에는 사슴벌레 드래그가 시작되지 않도록 잠금 조건을 보강했다.
+- Happy 중 젤리 드래그로 Follow가 끼어들지 않도록 젤리 드래그 잠금 조건을 보강했다.
+- 브라우저 favicon 404가 콘솔 에러로 잡히지 않도록 빈 데이터 favicon을 선언했다.
+- Live Server(`python -m http.server 8001`)와 headless Chrome CDP에서 사슴벌레 드래그, 드롭 후 Happy/Idle 복귀, 기존 젤리 먹이 루프, 콘솔 에러 없음을 확인했다.
+
+### Beetle Hold Touch Loop Adjustment
+
+- 사슴벌레 입력에서 짧은 터치, 긴 터치, 드래그 구분을 제거했다.
+- Touch 1회 종료 후 `beetle_touch_03.png`를 고정하던 처리를 제거했다.
+- 사슴벌레를 누르고 있는 동안 `touch.frameOrder` 전체를 계속 반복 재생하도록 바꿨다.
+- 포인터 이동 여부와 상관없이 잡고 있는 동안 같은 Touch 반복 애니메이션을 유지하도록 했다.
+- 포인터가 움직이면 기존 화면 제한과 드래그 오프셋 계산을 유지한 채 사슴벌레 위치만 갱신하도록 했다.
+- `pointerup` 또는 `pointercancel`이 발생하면 Touch 반복을 종료하고 Happy 1회 재생 후 Idle로 돌아가도록 했다.

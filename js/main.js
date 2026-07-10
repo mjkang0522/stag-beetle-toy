@@ -136,7 +136,8 @@ const LAYERS = {
     background: 0,
     jelly: 3,
     beetle: 4,
-    draggingJelly: 10
+    draggingJelly: 10,
+    draggingBeetle: 11
 };
 
 // ==============================
@@ -168,6 +169,14 @@ const jelly = {
 
 const feedingLoop = {
     isActive: false
+};
+
+const beetleInteraction = {
+    activePointerId: null,
+    isPointerDown: false,
+    isHolding: false,
+    dragOffsetX: 0,
+    dragOffsetY: 0
 };
 
 // ==============================
@@ -207,9 +216,19 @@ function updateJellyView() {
     jellyImageElement.src = beetleImageFolder + jelly.imageFileName;
 }
 
+function updateObjectLayers() {
+    beetleElement.style.zIndex = beetleInteraction.isHolding ? LAYERS.draggingBeetle : LAYERS.beetle;
+    jellyElement.style.zIndex = jelly.isDragging ? LAYERS.draggingJelly : LAYERS.jelly;
+}
+
 function setJellyDraggingLayer(isDragging) {
-    beetleElement.style.zIndex = LAYERS.beetle;
-    jellyElement.style.zIndex = isDragging ? LAYERS.draggingJelly : LAYERS.jelly;
+    jelly.isDragging = isDragging;
+    updateObjectLayers();
+}
+
+function setBeetleHoldingLayer(isHolding) {
+    beetleInteraction.isHolding = isHolding;
+    updateObjectLayers();
 }
 
 // ==============================
@@ -218,6 +237,18 @@ function setJellyDraggingLayer(isDragging) {
 
 function getRandomNumber(min, max) {
     return Math.random() * (max - min) + min;
+}
+
+function clampNumber(value, min, max) {
+    if (value < min) {
+        return min;
+    }
+
+    if (value > max) {
+        return max;
+    }
+
+    return value;
 }
 
 function clearTimers() {
@@ -671,40 +702,185 @@ function finishFeedingLoop() {
 // Touch 상태
 // ==============================
 
-function startTouchReaction() {
-    if (isTouchReactionLocked()) {
+function startBeetleInteraction(event) {
+    event.preventDefault();
+
+    if (isBeetleInteractionLocked()) {
         return;
     }
 
     clearTimers();
 
-    playAnimation(animationSettings.touch, function() {
-        playAnimation(animationSettings.happy, function() {
-            startIdleState();
-        });
-    });
+    beetleInteraction.activePointerId = event.pointerId;
+    beetleInteraction.isPointerDown = true;
+
+    setBeetleDragOffset(event);
+
+    captureBeetlePointer(event.pointerId);
+
+    beetleElement.classList.add("dragging");
+    setBeetleHoldingLayer(true);
+    playLoopAnimation(animationSettings.touch);
 }
 
-function isTouchReactionLocked() {
-    return beetle.state === "touch" ||
+function isBeetleInteractionLocked() {
+    return beetleInteraction.activePointerId !== null ||
+        jelly.isDragging ||
+        jelly.isInteractionLocked ||
+        beetle.state === "touch" ||
         beetle.state === "happy" ||
         beetle.state === "eatOpen" ||
         beetle.state === "eatChew" ||
         feedingLoop.isActive;
 }
 
-beetleElement.addEventListener("pointerdown", function(event) {
-    event.preventDefault();
+function setBeetleDragOffset(event) {
+    const beetleRect = beetleElement.getBoundingClientRect();
 
-    startTouchReaction();
-});
+    beetleInteraction.dragOffsetX = event.clientX - (beetleRect.left + beetleRect.width / 2);
+    beetleInteraction.dragOffsetY = event.clientY - (beetleRect.top + beetleRect.height / 2);
+}
+
+function isActiveBeetlePointer(event) {
+    return beetleInteraction.activePointerId === event.pointerId;
+}
+
+function moveBeetleInteraction(event) {
+    if (!isActiveBeetlePointer(event) || !beetleInteraction.isPointerDown) {
+        return;
+    }
+
+    event.preventDefault();
+    moveHeldBeetleToPointer(event.clientX, event.clientY);
+}
+
+function moveHeldBeetleToPointer(clientX, clientY) {
+    const nextPosition = getBeetlePositionFromPointer(clientX, clientY);
+
+    updateBeetleFlip(beetle.x, beetle.y, nextPosition.x, nextPosition.y);
+
+    beetle.x = nextPosition.x;
+    beetle.y = nextPosition.y;
+    beetle.state = "touch";
+
+    updateBeetleView();
+}
+
+function getBeetlePositionFromPointer(clientX, clientY) {
+    const screenRect = gameScreenElement.getBoundingClientRect();
+    const beetleRect = beetleElement.getBoundingClientRect();
+    let minX = beetleRect.width / 2;
+    let minY = beetleRect.height / 2;
+    let maxX = screenRect.width - minX;
+    let maxY = screenRect.height - minY;
+
+    if (minX > maxX) {
+        minX = screenRect.width / 2;
+        maxX = minX;
+    }
+
+    if (minY > maxY) {
+        minY = screenRect.height / 2;
+        maxY = minY;
+    }
+
+    const pointerX = clientX - screenRect.left - beetleInteraction.dragOffsetX;
+    const pointerY = clientY - screenRect.top - beetleInteraction.dragOffsetY;
+
+    return {
+        x: clampNumber(pointerX, minX, maxX) / screenRect.width * 100,
+        y: clampNumber(pointerY, minY, maxY) / screenRect.height * 100
+    };
+}
+
+function stopBeetleInteraction(event) {
+    if (!isActiveBeetlePointer(event)) {
+        return;
+    }
+
+    event.preventDefault();
+    beetleInteraction.isPointerDown = false;
+    moveHeldBeetleToPointer(event.clientX, event.clientY);
+    finishBeetleInteractionWithHappy();
+}
+
+function cancelBeetleInteraction(event) {
+    if (!isActiveBeetlePointer(event)) {
+        return;
+    }
+
+    event.preventDefault();
+    beetleInteraction.isPointerDown = false;
+    finishBeetleInteractionWithHappy();
+}
+
+function finishBeetleInteractionWithHappy() {
+    const pointerId = beetleInteraction.activePointerId;
+
+    clearTimers();
+    resetBeetleInteraction();
+    releaseBeetlePointerCapture(pointerId);
+
+    playAnimation(animationSettings.happy, function() {
+        startIdleState();
+    });
+}
+
+function resetBeetleInteraction() {
+    beetleElement.classList.remove("dragging");
+    setBeetleHoldingLayer(false);
+
+    beetleInteraction.activePointerId = null;
+    beetleInteraction.isPointerDown = false;
+    beetleInteraction.dragOffsetX = 0;
+    beetleInteraction.dragOffsetY = 0;
+}
+
+function releaseBeetlePointerCapture(pointerId) {
+    if (pointerId === null) {
+        return;
+    }
+
+    if (!beetleElement.hasPointerCapture || !beetleElement.releasePointerCapture) {
+        return;
+    }
+
+    try {
+        if (beetleElement.hasPointerCapture(pointerId)) {
+            beetleElement.releasePointerCapture(pointerId);
+        }
+    } catch (error) {
+        return;
+    }
+}
+
+function captureBeetlePointer(pointerId) {
+    if (!beetleElement.setPointerCapture) {
+        return;
+    }
+
+    try {
+        beetleElement.setPointerCapture(pointerId);
+    } catch (error) {
+        return;
+    }
+}
+
+beetleElement.addEventListener("pointerdown", startBeetleInteraction);
+document.addEventListener("pointermove", moveBeetleInteraction);
+document.addEventListener("pointerup", stopBeetleInteraction);
+document.addEventListener("pointercancel", cancelBeetleInteraction);
 
 // ==============================
 // 젤리 드래그
 // ==============================
 
 function isJellyDragLocked() {
-    return jelly.isInteractionLocked || feedingLoop.isActive || !jelly.isVisible;
+    return beetleInteraction.activePointerId !== null ||
+        beetle.state === "happy" ||
+        jelly.isInteractionLocked ||
+        feedingLoop.isActive ||
+        !jelly.isVisible;
 }
 
 function getJellyPositionFromPointer(event) {
