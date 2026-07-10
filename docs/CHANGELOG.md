@@ -71,3 +71,25 @@
 - 사슴벌레 방향 값을 `flipX`, `flipY`로 분리해 좌우 이동과 상하 이동 플립을 함께 표현하도록 했다.
 - 젤리 드래그 중에는 젤리가 사슴벌레보다 앞에 보이고, 드래그가 끝나면 사슴벌레가 다시 앞에 보이도록 레이어를 보정했다.
 - Eat(Open), Eat(Chew), 젤리 먹기 완료 흐름은 아직 연결하지 않았다.
+
+## 2026-07-10
+
+### Sprint 0 - Day 7 Feeding Loop
+
+- Follow 도착 시 Idle로 돌아가지 않고 `eatOpen` 상태로 진입하도록 연결했다.
+- `beetle_eat_oepn_01.png`부터 `beetle_eat_oepn_04.png`까지 Eat(Open) 애니메이션을 1회 재생하도록 했다.
+- `beetle_eat_chew_01.png`, `beetle_eat_chew_02.png` Eat(Chew) 애니메이션을 1, 2번째 먹기 단계에서 각각 4회 반복하도록 했다.
+- 각 Eat(Open) 종료 직후 `jelly_eaten_01.png`, `jelly_eaten_02.png`, `jelly_empty_plate.png` 순서로 젤리 이미지를 바꾸도록 했다.
+- 먹기 완료 후 기존 Happy 애니메이션을 1회 재생하고, 빈 접시를 opacity 방식으로 깜빡인 뒤 숨기도록 했다.
+- 새 `jelly.png`가 화면 위쪽에서 기본 위치로 떨어진 뒤 다시 드래그 가능해지도록 했다.
+- 먹는 중과 새 젤리 낙하 중에는 Touch 입력과 젤리 드래그를 무시하도록 잠금 상태를 추가했다.
+- `feedingLoop.isActive`로 먹이 주기 루프가 동시에 두 번 시작되지 않도록 했다.
+- Live Server(`python -m http.server 8000`)에서 Eat(Open), Eat(Chew), 젤리 단계 이미지, Happy, 빈 접시 숨김, 새 젤리 낙하, 최종 드래그 재활성화, 콘솔 에러 없음을 확인했다.
+
+### Feeding Timing Adjustment
+
+- 먹기 시퀀스를 새로 만들지 않고 기존 먹이 주기 루프의 순서만 조정했다.
+- 각 젤리 이미지 변경 타이밍을 Eat(Open) 시작 시점이나 Eat(Chew) 완료 시점이 아니라 Eat(Open) 종료 직후로 맞췄다.
+- 1, 2번째 먹기 단계에서는 Eat(Open) 후 젤리 이미지를 바꾸고 Eat(Chew)를 4회 반복하도록 했다.
+- 마지막 먹기 단계에서는 Eat(Open) 후 `jelly_empty_plate.png`로 바꾸고 Eat(Chew) 없이 Happy로 넘어가도록 했다.
+- 빈 접시 깜빡임, 새 젤리 낙하, 드래그 재활성화, Idle 복귀 흐름은 기존 구현을 유지했다.

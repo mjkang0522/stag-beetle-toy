@@ -1,6 +1,6 @@
 # 프로젝트 진행 상황
 
-마지막 업데이트: 2026-07-09
+마지막 업데이트: 2026-07-10
 
 ## 프로젝트 목표
 
@@ -49,7 +49,16 @@
 - 젤리 드롭 위치를 목표 좌표로 저장
 - Follow 상태에서 사슴벌레가 젤리 근처까지 천천히 이동
 - Follow 중 Walk 프레임 재사용
-- Follow 도착 후 Idle 상태 복귀
+- Follow 도착 후 먹이 주기 루프 진입
+- Eat(Open) 1회 재생
+- Eat(Open) 종료 직후 젤리 이미지 단계 변경
+- 1, 2번째 먹기 단계에서 Eat(Chew) 2프레임 루프 4회 재생
+- 마지막 먹기 단계에서는 Eat(Chew) 없이 빈 접시로 변경
+- 먹기 완료 후 Happy 1회 재생
+- 빈 접시 opacity 깜빡임 후 숨김
+- 새 젤리 화면 위쪽 낙하 재등장
+- 먹이 주기 중 사슴벌레 Touch 입력과 젤리 드래그 입력 잠금
+- 먹이 주기 완료 후 젤리 드래그 재활성화와 Idle 복귀
 
 ## 현재 구현된 애니메이션
 
@@ -58,11 +67,8 @@
 - Follow: Walk 2프레임을 재사용하는 젤리 방향 이동
 - Touch: 터치했을 때 3프레임 왕복 반응
 - Happy: Touch 뒤에 이어지는 3프레임 왕복 반응
-
-아직 코드에 연결되지 않은 애니메이션 애셋은 다음과 같다.
-
-- Eat(Open): `beetle_eat_oepn_01.png`부터 `beetle_eat_oepn_04.png`
-- Eat(Chew): `beetle_eat_chew_01.png`, `beetle_eat_chew_02.png`
+- Eat(Open): Follow 도착 후 4프레임 1회 재생
+- Eat(Chew): 1, 2번째 먹기 단계에서 2프레임 루프를 4회 재생
 
 ## 현재 리소스 현황
 
@@ -77,13 +83,16 @@ assets/
 │   ├── happy 3장
 │   ├── eat open 4장
 │   ├── eat chew 2장
-│   └── jelly.png
+│   ├── jelly.png
+│   ├── jelly_eaten_01.png
+│   ├── jelly_eaten_02.png
+│   └── jelly_empty_plate.png
 ├── sound/
 └── ui/
 ```
 
 - 사슴벌레 프레임 PNG: 모두 `512 x 512`
-- 젤리 이미지: `349 x 206`
+- 젤리 기본/단계 이미지: `jelly.png`, `jelly_eaten_01.png`, `jelly_eaten_02.png`, `jelly_empty_plate.png`
 - 배경 이미지: `1080 x 1920`
 - `assets/sound/`: 현재 비어 있음
 - `assets/ui/`: 현재 비어 있음
@@ -120,24 +129,31 @@ js/main.js
 - `animationSettings`: 프레임 순서와 지연 시간 규칙
 - `LAYERS`: 기본 레이어와 드래그 중 젤리 레이어 값
 - `beetle`: 현재 위치, 상태, 좌우/상하 플립, 프레임
-- `jelly`: 현재 위치, 목표 위치, 드래그 상태
+- `jelly`: 현재 위치, 목표 위치, 이미지 단계, 표시 상태, 입력 잠금, 드래그 상태
+- `feedingLoop`: 먹이 주기 루프 중복 실행 방지 상태
 - `clearTimers()`: 기존 타이머와 이동 프레임 정리
 - `playAnimation()`: 정해진 프레임 순서 재생
 - `setJellyDraggingLayer()`: 젤리 드래그 시작/종료에 맞춰 레이어 전환
 - `startIdleState()`: Idle 진입
 - `startWalkState()`: Walk 진입
 - `startFollowState()`: 젤리 목표 위치를 향한 Follow 진입
+- `startFeedingLoop()`: Eat(Open)부터 새 젤리 재등장까지 먹이 주기 루프 진입
+- `playBiteStep()`: Eat(Open) 재생, 젤리 이미지 변경, 다음 씹기/단계 연결
+- `playChewRepeats()`: Eat(Chew) 4회 반복 재생
+- `dropNewJelly()`: 새 젤리를 화면 위쪽에서 초기 위치로 낙하
 - `startTouchReaction()`: Touch와 Happy 반응 연결
 
 ## 현재 구현된 상태
 
-`beetle.state`에 실제로 들어가는 상태는 다음 다섯 가지다.
+`beetle.state`에 실제로 들어가는 상태는 다음 일곱 가지다.
 
 - `idle`
 - `walk`
 - `follow`
 - `touch`
 - `happy`
+- `eatOpen`
+- `eatChew`
 
 현재 상태 흐름은 다음과 같다.
 
@@ -149,12 +165,15 @@ stateDiagram-v2
     walk --> idle: move complete
     idle --> follow: jelly drop
     walk --> follow: jelly drop
-    follow --> idle: arrive near jelly
+    follow --> eatOpen: arrive near jelly
+    eatOpen --> eatChew: first/second bite image changed
+    eatChew --> eatOpen: chew 4 times
+    eatOpen --> happy: final bite image changed
     idle --> touch: pointerdown
     walk --> touch: pointerdown
     follow --> touch: pointerdown
     touch --> happy: animation complete
-    happy --> idle: animation complete
+    happy --> idle: animation or feeding complete
 ```
 
 `idleBlink`는 별도 상태라기보다 `idle` 프레임을 사용하는 짧은 애니메이션이다.
@@ -170,10 +189,9 @@ stateDiagram-v2
 
 ## 다음 개발 목표
 
-가장 가까운 목표는 젤리 먹이 주기 MVP를 만드는 것이다.
+가장 가까운 목표는 Sprint 0 마무리 검증과 안정성 보강이다.
 
-1. Eat(Open) 1회 재생 연결
-2. Eat(Chew) 반복 재생 연결
-3. 먹기 완료 후 Happy 또는 Idle로 복귀
-4. 모바일 화면에서 크기와 터치 안정성 확인
-5. 이미지 프리로드와 접근성 개선 검토
+1. 모바일 화면에서 크기와 터치 안정성 확인
+2. 젤리 낙하와 드래그 재시작 타이밍을 실제 기기에서 확인
+3. 이미지 프리로드와 접근성 개선 검토
+4. Sprint 1 반응 상태 확장 범위 정리

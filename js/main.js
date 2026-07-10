@@ -6,6 +6,28 @@ console.log("우리집 사슴벌레 시작!");
 
 const beetleImageFolder = "assets/beetle/";
 
+const jellyImages = {
+    full: "jelly.png",
+    eaten01: "jelly_eaten_01.png",
+    eaten02: "jelly_eaten_02.png",
+    emptyPlate: "jelly_empty_plate.png"
+};
+
+const jellyRespawnSettings = {
+    initialX: 50,
+    initialY: 78,
+    fallStartY: -12,
+    fallDuration: 900,
+    respawnDelay: 220,
+    blinkDelay: 170,
+    blinkToggleCount: 6
+};
+
+const feedingSettings = {
+    finalBiteCount: 3,
+    chewRepeatCount: 4
+};
+
 const beetleFrames = {
     idle: [
         "beetle_idle_01.png",
@@ -33,6 +55,18 @@ const beetleFrames = {
         "beetle_happy_01.png",
         "beetle_happy_02.png",
         "beetle_happy_03.png"
+    ],
+
+    eatOpen: [
+        "beetle_eat_oepn_01.png",
+        "beetle_eat_oepn_02.png",
+        "beetle_eat_oepn_03.png",
+        "beetle_eat_oepn_04.png"
+    ],
+
+    eatChew: [
+        "beetle_eat_chew_01.png",
+        "beetle_eat_chew_02.png"
     ]
 };
 
@@ -69,6 +103,18 @@ const animationSettings = {
         state: "happy",
         frameOrder: [1, 2, 3, 2, 1, 2, 3, 2],
         frameDelay: 80
+    },
+
+    eatOpen: {
+        state: "eatOpen",
+        frameOrder: [1, 2, 3, 4],
+        frameDelay: 120
+    },
+
+    eatChew: {
+        state: "eatChew",
+        frameOrder: [1, 2],
+        frameDelay: 160
     }
 };
 
@@ -80,6 +126,7 @@ const beetleElement = document.getElementById("beetle");
 const beetleImageElement = document.getElementById("beetle_image");
 const gameScreenElement = document.getElementById("game_screen");
 const jellyElement = document.getElementById("jelly");
+const jellyImageElement = document.getElementById("jelly_image");
 
 // ==============================
 // 레이어 설정
@@ -106,13 +153,21 @@ const beetle = {
 };
 
 const jelly = {
-    x: 50,
-    y: 78,
-    targetX: 50,
-    targetY: 78,
+    x: jellyRespawnSettings.initialX,
+    y: jellyRespawnSettings.initialY,
+    targetX: jellyRespawnSettings.initialX,
+    targetY: jellyRespawnSettings.initialY,
+    imageFileName: jellyImages.full,
+    opacity: 1,
+    isVisible: true,
+    isInteractionLocked: false,
     isDragging: false,
     dragOffsetX: 0,
     dragOffsetY: 0
+};
+
+const feedingLoop = {
+    isActive: false
 };
 
 // ==============================
@@ -122,6 +177,9 @@ const jelly = {
 let idleTimer = null;
 let frameTimer = null;
 let moveAnimationId = null;
+let jellyBlinkTimer = null;
+let jellyRespawnTimer = null;
+let jellyFallAnimationId = null;
 
 // ==============================
 // 화면 갱신
@@ -141,6 +199,12 @@ function updateBeetleView() {
 function updateJellyView() {
     jellyElement.style.left = jelly.x + "%";
     jellyElement.style.top = jelly.y + "%";
+    jellyElement.style.opacity = jelly.opacity;
+    jellyElement.style.visibility = jelly.isVisible ? "visible" : "hidden";
+    jellyElement.style.pointerEvents = jelly.isInteractionLocked || !jelly.isVisible ? "none" : "auto";
+    jellyElement.disabled = jelly.isInteractionLocked || !jelly.isVisible;
+
+    jellyImageElement.src = beetleImageFolder + jelly.imageFileName;
 }
 
 function setJellyDraggingLayer(isDragging) {
@@ -170,6 +234,21 @@ function clearTimers() {
     if (moveAnimationId !== null) {
         cancelAnimationFrame(moveAnimationId);
         moveAnimationId = null;
+    }
+
+    if (jellyBlinkTimer !== null) {
+        clearInterval(jellyBlinkTimer);
+        jellyBlinkTimer = null;
+    }
+
+    if (jellyRespawnTimer !== null) {
+        clearTimeout(jellyRespawnTimer);
+        jellyRespawnTimer = null;
+    }
+
+    if (jellyFallAnimationId !== null) {
+        cancelAnimationFrame(jellyFallAnimationId);
+        jellyFallAnimationId = null;
     }
 }
 
@@ -369,6 +448,10 @@ function moveBeetleTo(startX, startY, targetX, targetY) {
 // ==============================
 
 function startFollowState() {
+    if (feedingLoop.isActive) {
+        return;
+    }
+
     clearTimers();
 
     jelly.targetX = jelly.x;
@@ -385,7 +468,7 @@ function startFollowState() {
     const arriveDistance = 7;
 
     if (distanceToJelly <= arriveDistance) {
-        startIdleState();
+        startFeedingLoop();
         return;
     }
 
@@ -424,7 +507,7 @@ function moveBeetleToJelly(startX, startY, targetX, targetY, arriveDistance) {
         if (remainingDistance > arriveDistance && progress < 1) {
             moveAnimationId = requestAnimationFrame(move);
         } else {
-            startIdleState();
+            startFeedingLoop();
         }
     }
 
@@ -432,11 +515,164 @@ function moveBeetleToJelly(startX, startY, targetX, targetY, arriveDistance) {
 }
 
 // ==============================
+// 먹이 주기 상태
+// ==============================
+
+function startFeedingLoop() {
+    if (feedingLoop.isActive) {
+        return;
+    }
+
+    clearTimers();
+
+    feedingLoop.isActive = true;
+    jelly.isDragging = false;
+    jelly.isInteractionLocked = true;
+    jelly.imageFileName = jellyImages.full;
+    jelly.opacity = 1;
+    jelly.isVisible = true;
+    jelly.dragOffsetX = 0;
+    jelly.dragOffsetY = 0;
+
+    jellyElement.classList.remove("dragging");
+    setJellyDraggingLayer(false);
+    updateJellyView();
+
+    playBiteStep(1);
+}
+
+function playBiteStep(biteCount) {
+    playAnimation(animationSettings.eatOpen, function() {
+        updateJellyImageAfterOpen(biteCount);
+
+        if (biteCount < feedingSettings.finalBiteCount) {
+            playChewRepeats(1, function() {
+                playBiteStep(biteCount + 1);
+            });
+        } else {
+            playAnimation(animationSettings.happy, function() {
+                blinkEmptyPlate();
+            });
+        }
+    });
+}
+
+function playChewRepeats(repeatCount, onComplete) {
+    playAnimation(animationSettings.eatChew, function() {
+        if (repeatCount < feedingSettings.chewRepeatCount) {
+            playChewRepeats(repeatCount + 1, onComplete);
+        } else if (onComplete) {
+            onComplete();
+        }
+    });
+}
+
+function updateJellyImageAfterOpen(biteCount) {
+    if (biteCount === 1) {
+        jelly.imageFileName = jellyImages.eaten01;
+    }
+
+    if (biteCount === 2) {
+        jelly.imageFileName = jellyImages.eaten02;
+    }
+
+    if (biteCount === 3) {
+        jelly.imageFileName = jellyImages.emptyPlate;
+    }
+
+    updateJellyView();
+}
+
+function blinkEmptyPlate() {
+    jelly.imageFileName = jellyImages.emptyPlate;
+    jelly.opacity = 1;
+    jelly.isVisible = true;
+    updateJellyView();
+
+    let toggleCount = 0;
+
+    jellyBlinkTimer = setInterval(function() {
+        toggleCount = toggleCount + 1;
+        jelly.opacity = jelly.opacity === 1 ? 0 : 1;
+
+        updateJellyView();
+
+        if (toggleCount >= jellyRespawnSettings.blinkToggleCount) {
+            clearInterval(jellyBlinkTimer);
+            jellyBlinkTimer = null;
+            hideEmptyPlateBeforeRespawn();
+        }
+    }, jellyRespawnSettings.blinkDelay);
+}
+
+function hideEmptyPlateBeforeRespawn() {
+    jelly.opacity = 0;
+    jelly.isVisible = false;
+    updateJellyView();
+
+    jellyRespawnTimer = setTimeout(function() {
+        jellyRespawnTimer = null;
+        dropNewJelly();
+    }, jellyRespawnSettings.respawnDelay);
+}
+
+function dropNewJelly() {
+    jelly.x = jellyRespawnSettings.initialX;
+    jelly.y = jellyRespawnSettings.fallStartY;
+    jelly.imageFileName = jellyImages.full;
+    jelly.opacity = 1;
+    jelly.isVisible = true;
+    jelly.isInteractionLocked = true;
+
+    updateJellyView();
+
+    const startY = jellyRespawnSettings.fallStartY;
+    const targetY = jellyRespawnSettings.initialY;
+    const startTime = performance.now();
+
+    function fall(currentTime) {
+        const elapsedTime = currentTime - startTime;
+        let progress = elapsedTime / jellyRespawnSettings.fallDuration;
+
+        if (progress > 1) {
+            progress = 1;
+        }
+
+        const easedProgress = 1 - Math.pow(1 - progress, 3);
+
+        jelly.y = startY + (targetY - startY) * easedProgress;
+        updateJellyView();
+
+        if (progress < 1) {
+            jellyFallAnimationId = requestAnimationFrame(fall);
+        } else {
+            jellyFallAnimationId = null;
+            finishFeedingLoop();
+        }
+    }
+
+    jellyFallAnimationId = requestAnimationFrame(fall);
+}
+
+function finishFeedingLoop() {
+    jelly.x = jellyRespawnSettings.initialX;
+    jelly.y = jellyRespawnSettings.initialY;
+    jelly.imageFileName = jellyImages.full;
+    jelly.opacity = 1;
+    jelly.isVisible = true;
+    jelly.isInteractionLocked = false;
+    feedingLoop.isActive = false;
+
+    updateJellyView();
+    startIdleState();
+}
+
+// ==============================
 // Touch 상태
 // ==============================
 
 function startTouchReaction() {
-    if (beetle.state === "touch" || beetle.state === "happy") {
+    if (isTouchReactionLocked()) {
         return;
     }
 
@@ -449,6 +685,14 @@ function startTouchReaction() {
     });
 }
 
+function isTouchReactionLocked() {
+    return beetle.state === "touch" ||
+        beetle.state === "happy" ||
+        beetle.state === "eatOpen" ||
+        beetle.state === "eatChew" ||
+        feedingLoop.isActive;
+}
+
 beetleElement.addEventListener("pointerdown", function(event) {
     event.preventDefault();
 
@@ -458,6 +702,10 @@ beetleElement.addEventListener("pointerdown", function(event) {
 // ==============================
 // 젤리 드래그
 // ==============================
+
+function isJellyDragLocked() {
+    return jelly.isInteractionLocked || feedingLoop.isActive || !jelly.isVisible;
+}
 
 function getJellyPositionFromPointer(event) {
     const screenRect = gameScreenElement.getBoundingClientRect();
@@ -496,6 +744,10 @@ function startJellyDrag(event) {
     event.preventDefault();
     event.stopPropagation();
 
+    if (isJellyDragLocked()) {
+        return;
+    }
+
     const jellyRect = jellyElement.getBoundingClientRect();
 
     jelly.isDragging = true;
@@ -508,7 +760,7 @@ function startJellyDrag(event) {
 }
 
 function moveJelly(event) {
-    if (!jelly.isDragging) {
+    if (!jelly.isDragging || isJellyDragLocked()) {
         return;
     }
 
@@ -550,7 +802,7 @@ function finishJellyDrag(event, shouldStartFollow) {
         jellyElement.releasePointerCapture(event.pointerId);
     }
 
-    if (shouldStartFollow) {
+    if (shouldStartFollow && !isJellyDragLocked()) {
         startFollowState();
     }
 }
