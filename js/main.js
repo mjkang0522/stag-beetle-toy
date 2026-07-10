@@ -189,6 +189,63 @@ let moveAnimationId = null;
 let jellyBlinkTimer = null;
 let jellyRespawnTimer = null;
 let jellyFallAnimationId = null;
+let isAppReady = false;
+
+// ==============================
+// 이미지 preload
+// ==============================
+
+function collectRequiredImagePaths() {
+    const imagePaths = [];
+
+    Object.keys(beetleFrames).forEach(function(stateName) {
+        beetleFrames[stateName].forEach(function(imageFileName) {
+            imagePaths.push(beetleImageFolder + imageFileName);
+        });
+    });
+
+    Object.keys(jellyImages).forEach(function(imageName) {
+        imagePaths.push(beetleImageFolder + jellyImages[imageName]);
+    });
+
+    return Array.from(new Set(imagePaths));
+}
+
+function preloadRequiredImages() {
+    const imagePaths = collectRequiredImagePaths();
+
+    return Promise.all(imagePaths.map(function(imagePath) {
+        return preloadImage(imagePath);
+    }));
+}
+
+function preloadImage(imagePath) {
+    return new Promise(function(resolve) {
+        const image = new Image();
+        const absoluteImagePath = new URL(imagePath, window.location.href).href;
+
+        image.onload = function() {
+            decodeImage(image, absoluteImagePath).then(resolve);
+        };
+
+        image.onerror = function() {
+            console.error("이미지 로드 실패:", absoluteImagePath);
+            resolve();
+        };
+
+        image.src = absoluteImagePath;
+    });
+}
+
+function decodeImage(image, absoluteImagePath) {
+    if (!image.decode) {
+        return Promise.resolve();
+    }
+
+    return image.decode().catch(function(error) {
+        console.error("이미지 디코드 실패:", absoluteImagePath, error);
+    });
+}
 
 // ==============================
 // 화면 갱신
@@ -315,6 +372,10 @@ function playAnimation(animationSetting, onComplete) {
 // ==============================
 
 function startIdleState() {
+    if (!isAppReady) {
+        return;
+    }
+
     clearTimers();
 
     beetle.state = "idle";
@@ -349,6 +410,10 @@ function playIdleBlink() {
 // ==============================
 
 function startWalkState() {
+    if (!isAppReady) {
+        return;
+    }
+
     clearTimers();
 
     beetle.state = "walk";
@@ -479,6 +544,10 @@ function moveBeetleTo(startX, startY, targetX, targetY) {
 // ==============================
 
 function startFollowState() {
+    if (!isAppReady) {
+        return;
+    }
+
     if (feedingLoop.isActive) {
         return;
     }
@@ -550,6 +619,10 @@ function moveBeetleToJelly(startX, startY, targetX, targetY, arriveDistance) {
 // ==============================
 
 function startFeedingLoop() {
+    if (!isAppReady) {
+        return;
+    }
+
     if (feedingLoop.isActive) {
         return;
     }
@@ -704,6 +777,10 @@ function finishFeedingLoop() {
 
 function startBeetleInteraction(event) {
     event.preventDefault();
+
+    if (!isAppReady) {
+        return;
+    }
 
     if (isBeetleInteractionLocked()) {
         return;
@@ -920,6 +997,10 @@ function startJellyDrag(event) {
     event.preventDefault();
     event.stopPropagation();
 
+    if (!isAppReady) {
+        return;
+    }
+
     if (isJellyDragLocked()) {
         return;
     }
@@ -993,7 +1074,17 @@ document.addEventListener("pointercancel", cancelJellyDrag);
 // 시작
 // ==============================
 
-updateBeetleView();
-updateJellyView();
-setJellyDraggingLayer(false);
-startIdleState();
+function startApplication() {
+    isAppReady = true;
+
+    updateBeetleView();
+    updateJellyView();
+    setJellyDraggingLayer(false);
+    startIdleState();
+}
+
+preloadRequiredImages().catch(function(error) {
+    console.error("이미지 preload 중 오류:", error);
+}).then(function() {
+    startApplication();
+});
