@@ -71,7 +71,7 @@ body {
 }
 
 #jelly_image {
-    width: clamp(130px, 35vw, 260px);
+    width: clamp(130px, 45vw, 360px);
     display: block;
 
     user-select: none;
