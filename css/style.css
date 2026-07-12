@@ -1,12 +1,21 @@
+html,
 body {
     margin: 0;
     padding: 0;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
 }
 
 #game_screen {
     width: 100vw;
     height: 100vh;
+    min-height: 100dvh;
 
     background-image: url("../assets/bg/bg_main.png");
     background-size: cover;
@@ -14,6 +23,12 @@ body {
     background-repeat: no-repeat;
 
     position: relative;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
 }
 
 #beetle {
@@ -28,6 +43,8 @@ body {
     cursor: pointer;
     touch-action: none;
     user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
 }
 
 #beetle.dragging {
@@ -39,6 +56,8 @@ body {
     display: block;
 
     user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
     -webkit-user-drag: none;
 }
 
@@ -59,6 +78,8 @@ body {
     cursor: grab;
     touch-action: none;
     user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
     transition: opacity 120ms linear;
 }
 
@@ -75,6 +96,15 @@ body {
     display: block;
 
     user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
     -webkit-user-drag: none;
     pointer-events: none;
+}
+
+#game_screen img {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-user-drag: none;
+    -webkit-touch-callout: none;
 }

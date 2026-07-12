@@ -163,6 +163,7 @@ const jelly = {
     isVisible: true,
     isInteractionLocked: false,
     isDragging: false,
+    activePointerId: null,
     dragOffsetX: 0,
     dragOffsetY: 0
 };
@@ -177,6 +178,10 @@ const beetleInteraction = {
     isHolding: false,
     dragOffsetX: 0,
     dragOffsetY: 0
+};
+
+const gameInput = {
+    activePointerId: null
 };
 
 // ==============================
@@ -306,6 +311,36 @@ function clampNumber(value, min, max) {
     }
 
     return value;
+}
+
+function reserveGamePointer(event) {
+    if (gameInput.activePointerId === null) {
+        gameInput.activePointerId = event.pointerId;
+        return;
+    }
+
+    if (gameInput.activePointerId !== event.pointerId) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+}
+
+function isActiveGamePointer(event) {
+    return gameInput.activePointerId === event.pointerId;
+}
+
+function releaseGamePointer(pointerId) {
+    if (gameInput.activePointerId === pointerId) {
+        gameInput.activePointerId = null;
+    }
+}
+
+function releaseGamePointerFromEvent(event) {
+    releaseGamePointer(event.pointerId);
+}
+
+function preventGameDefaultAction(event) {
+    event.preventDefault();
 }
 
 function clearTimers() {
@@ -631,6 +666,7 @@ function startFeedingLoop() {
 
     feedingLoop.isActive = true;
     jelly.isDragging = false;
+    jelly.activePointerId = null;
     jelly.isInteractionLocked = true;
     jelly.imageFileName = jellyImages.full;
     jelly.opacity = 1;
@@ -782,6 +818,10 @@ function startBeetleInteraction(event) {
         return;
     }
 
+    if (!isActiveGamePointer(event)) {
+        return;
+    }
+
     if (isBeetleInteractionLocked()) {
         return;
     }
@@ -802,6 +842,7 @@ function startBeetleInteraction(event) {
 
 function isBeetleInteractionLocked() {
     return beetleInteraction.activePointerId !== null ||
+        jelly.activePointerId !== null ||
         jelly.isDragging ||
         jelly.isInteractionLocked ||
         beetle.state === "touch" ||
@@ -896,6 +937,7 @@ function finishBeetleInteractionWithHappy() {
 
     clearTimers();
     resetBeetleInteraction();
+    releaseGamePointer(pointerId);
     releaseBeetlePointerCapture(pointerId);
 
     playAnimation(animationSettings.happy, function() {
@@ -943,7 +985,15 @@ function captureBeetlePointer(pointerId) {
     }
 }
 
+gameScreenElement.addEventListener("pointerdown", reserveGamePointer, true);
+gameScreenElement.addEventListener("contextmenu", preventGameDefaultAction);
+gameScreenElement.addEventListener("dragstart", preventGameDefaultAction);
+gameScreenElement.addEventListener("selectstart", preventGameDefaultAction);
+document.addEventListener("pointerup", releaseGamePointerFromEvent);
+document.addEventListener("pointercancel", releaseGamePointerFromEvent);
+
 beetleElement.addEventListener("pointerdown", startBeetleInteraction);
+beetleElement.addEventListener("lostpointercapture", cancelBeetleInteraction);
 document.addEventListener("pointermove", moveBeetleInteraction);
 document.addEventListener("pointerup", stopBeetleInteraction);
 document.addEventListener("pointercancel", cancelBeetleInteraction);
@@ -958,6 +1008,10 @@ function isJellyDragLocked() {
         jelly.isInteractionLocked ||
         feedingLoop.isActive ||
         !jelly.isVisible;
+}
+
+function isActiveJellyPointer(event) {
+    return jelly.activePointerId === event.pointerId;
 }
 
 function getJellyPositionFromPointer(event) {
@@ -1001,23 +1055,24 @@ function startJellyDrag(event) {
         return;
     }
 
-    if (isJellyDragLocked()) {
+    if (!isActiveGamePointer(event) || jelly.activePointerId !== null || isJellyDragLocked()) {
         return;
     }
 
     const jellyRect = jellyElement.getBoundingClientRect();
 
+    jelly.activePointerId = event.pointerId;
     jelly.isDragging = true;
     jelly.dragOffsetX = event.clientX - (jellyRect.left + jellyRect.width / 2);
     jelly.dragOffsetY = event.clientY - (jellyRect.top + jellyRect.height / 2);
 
     jellyElement.classList.add("dragging");
     setJellyDraggingLayer(true);
-    jellyElement.setPointerCapture(event.pointerId);
+    captureJellyPointer(event.pointerId);
 }
 
 function moveJelly(event) {
-    if (!jelly.isDragging || isJellyDragLocked()) {
+    if (!isActiveJellyPointer(event) || !jelly.isDragging || isJellyDragLocked()) {
         return;
     }
 
@@ -1041,26 +1096,58 @@ function cancelJellyDrag(event) {
 }
 
 function finishJellyDrag(event, shouldStartFollow) {
-    if (!jelly.isDragging) {
+    if (!isActiveJellyPointer(event) || !jelly.isDragging) {
         return;
     }
 
     event.preventDefault();
     event.stopPropagation();
 
+    const pointerId = jelly.activePointerId;
+
     jelly.isDragging = false;
+    jelly.activePointerId = null;
     jelly.dragOffsetX = 0;
     jelly.dragOffsetY = 0;
 
     jellyElement.classList.remove("dragging");
     setJellyDraggingLayer(false);
 
-    if (jellyElement.hasPointerCapture(event.pointerId)) {
-        jellyElement.releasePointerCapture(event.pointerId);
-    }
+    releaseGamePointer(pointerId);
+    releaseJellyPointerCapture(pointerId);
 
     if (shouldStartFollow && !isJellyDragLocked()) {
         startFollowState();
+    }
+}
+
+function captureJellyPointer(pointerId) {
+    if (!jellyElement.setPointerCapture) {
+        return;
+    }
+
+    try {
+        jellyElement.setPointerCapture(pointerId);
+    } catch (error) {
+        return;
+    }
+}
+
+function releaseJellyPointerCapture(pointerId) {
+    if (pointerId === null) {
+        return;
+    }
+
+    if (!jellyElement.hasPointerCapture || !jellyElement.releasePointerCapture) {
+        return;
+    }
+
+    try {
+        if (jellyElement.hasPointerCapture(pointerId)) {
+            jellyElement.releasePointerCapture(pointerId);
+        }
+    } catch (error) {
+        return;
     }
 }
 
