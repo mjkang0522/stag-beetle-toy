@@ -1,12 +1,12 @@
 # 프로젝트 진행 상황
 
-마지막 업데이트: 2026-07-10
+마지막 업데이트: 2026-07-14
 
 ## 프로젝트 목표
 
 `우리집 사슴벌레`는 브라우저에서 바로 실행되는 작은 정적 웹 토이다. 사용자는 배경 위의 사슴벌레를 관찰하고 터치하며, 사슴벌레는 쉬기, 깜빡이기, 걷기, 터치 반응, 기분 좋은 반응을 통해 살아 있는 장난감처럼 보이도록 한다.
 
-장기 목표는 젤리 먹이 주기, 감정 변화, 도망/회복 같은 작은 행동을 하나씩 추가해 단순하지만 오래 관리 가능한 디지털 펫으로 확장하는 것이다.
+장기 목표는 젤리 먹이 주기, 감정 변화, 랜덤 사슴벌레 방문 루프 같은 작은 행동을 하나씩 추가해 단순하지만 오래 관리 가능한 디지털 펫으로 확장하는 것이다.
 
 ## 개발 환경
 
@@ -50,10 +50,10 @@
 - 상태 전환 시 기존 타이머와 이동 프레임 정리
 - 젤리 표시와 드래그 입력 처리
 - 젤리 드래그 중 레이어를 가장 앞으로 보정
-- 젤리 드롭 위치를 목표 좌표로 저장
+- 젤리 드래그 중 현재 젤리 위치를 목표 좌표로 갱신
 - Follow 상태에서 사슴벌레가 젤리 근처까지 천천히 이동
 - Follow 중 Walk 프레임 재사용
-- Follow 도착 후 먹이 주기 루프 진입
+- 정상 드롭 이후 Follow 도착 시 먹이 주기 루프 진입
 - Eat(Open) 1회 재생
 - Eat(Open) 종료 직후 젤리 이미지 단계 변경
 - 1, 2번째 먹기 단계에서 Eat(Chew) 2프레임 루프 4회 재생
@@ -170,9 +170,9 @@ stateDiagram-v2
     idle --> idle: idleBlink
     idle --> walk: random
     walk --> idle: move complete
-    idle --> follow: jelly drop
-    walk --> follow: jelly drop
-    follow --> eatOpen: arrive near jelly
+    idle --> follow: jelly drag/drop
+    walk --> follow: jelly drag/drop
+    follow --> eatOpen: arrive near jelly after drop
     eatOpen --> eatChew: first/second bite image changed
     eatChew --> eatOpen: chew 4 times
     eatOpen --> happy: final bite image changed
@@ -204,3 +204,7 @@ stateDiagram-v2
 2. 젤리 낙하와 드래그 재시작 타이밍을 실제 기기에서 확인
 3. 이미지 프리로드와 접근성 개선 검토
 4. Sprint 1 반응 상태 확장 범위 정리
+
+## 중장기 백로그 배치
+
+`랜덤 사슴벌레 방문 루프`는 Capacitor APK 포장 이후, 나무 미니씬 이전에 검토하는 중간 우선순위 백로그다. 상세 개발 순서와 기능 범위는 `docs/TODO.md`에서 관리한다.

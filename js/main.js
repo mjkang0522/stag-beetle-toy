@@ -33,7 +33,8 @@ const jellyRespawnSettings = {
 
 const feedingSettings = {
     finalBiteCount: 3,
-    chewRepeatCount: 4
+    chewRepeatCount: 4,
+    eatDistancePercent: 7
 };
 
 const soundSettings = {
@@ -202,6 +203,11 @@ const beetleInteraction = {
     activePointerId: null,
     isPointerDown: false,
     isHolding: false,
+    hasMoved: false,
+    hasCheckedDropFeeding: false,
+    startedInFollowState: false,
+    startX: 50,
+    startY: 50,
     dragOffsetX: 0,
     dragOffsetY: 0
 };
@@ -801,7 +807,7 @@ function startFollowState(canEatOnArrive) {
     updateBeetleFlip(startX, startY, targetX, targetY);
 
     const distanceToJelly = getDistance(startX, startY, targetX, targetY);
-    const arriveDistance = 7;
+    const arriveDistance = feedingSettings.eatDistancePercent;
 
     if (distanceToJelly <= arriveDistance && followState.canEatOnArrive) {
         startFeedingLoop();
@@ -1061,6 +1067,11 @@ function startBeetleInteraction(event) {
 
     beetleInteraction.activePointerId = event.pointerId;
     beetleInteraction.isPointerDown = true;
+    beetleInteraction.hasMoved = false;
+    beetleInteraction.hasCheckedDropFeeding = false;
+    beetleInteraction.startedInFollowState = beetle.state === "follow";
+    beetleInteraction.startX = beetle.x;
+    beetleInteraction.startY = beetle.y;
 
     setBeetleDragOffset(event);
 
@@ -1109,6 +1120,10 @@ function moveHeldBeetleToPointer(clientX, clientY) {
 
     updateBeetleFlip(beetle.x, beetle.y, nextPosition.x, nextPosition.y);
 
+    if (getDistance(beetleInteraction.startX, beetleInteraction.startY, nextPosition.x, nextPosition.y) > 0.2) {
+        beetleInteraction.hasMoved = true;
+    }
+
     beetle.x = nextPosition.x;
     beetle.y = nextPosition.y;
     beetle.state = "touch";
@@ -1151,6 +1166,12 @@ function stopBeetleInteraction(event) {
     event.preventDefault();
     beetleInteraction.isPointerDown = false;
     moveHeldBeetleToPointer(event.clientX, event.clientY);
+
+    if (shouldStartFeedingFromBeetleDrop()) {
+        finishBeetleInteractionWithFeeding();
+        return;
+    }
+
     finishBeetleInteractionWithHappy();
 }
 
@@ -1179,12 +1200,53 @@ function finishBeetleInteractionWithHappy() {
     });
 }
 
+function shouldStartFeedingFromBeetleDrop() {
+    if (beetleInteraction.hasCheckedDropFeeding) {
+        return false;
+    }
+
+    beetleInteraction.hasCheckedDropFeeding = true;
+
+    if (!beetleInteraction.hasMoved || beetleInteraction.startedInFollowState) {
+        return false;
+    }
+
+    if (beetle.state === "follow" || beetle.state === "eatOpen" || beetle.state === "eatChew") {
+        return false;
+    }
+
+    if (feedingLoop.isActive || jelly.isDragging || jelly.activePointerId !== null) {
+        return false;
+    }
+
+    if (jelly.isInteractionLocked || !jelly.isVisible || jelly.imageFileName === jellyImages.emptyPlate) {
+        return false;
+    }
+
+    return getDistance(beetle.x, beetle.y, jelly.x, jelly.y) <= feedingSettings.eatDistancePercent;
+}
+
+function finishBeetleInteractionWithFeeding() {
+    const pointerId = beetleInteraction.activePointerId;
+
+    updateBeetleFlip(beetle.x, beetle.y, jelly.x, jelly.y);
+    resetBeetleInteraction();
+    releaseGamePointer(pointerId);
+    releaseBeetlePointerCapture(pointerId);
+    startFeedingLoop();
+}
+
 function resetBeetleInteraction() {
     beetleElement.classList.remove("dragging");
     setBeetleHoldingLayer(false);
 
     beetleInteraction.activePointerId = null;
     beetleInteraction.isPointerDown = false;
+    beetleInteraction.hasMoved = false;
+    beetleInteraction.hasCheckedDropFeeding = false;
+    beetleInteraction.startedInFollowState = false;
+    beetleInteraction.startX = beetle.x;
+    beetleInteraction.startY = beetle.y;
     beetleInteraction.dragOffsetX = 0;
     beetleInteraction.dragOffsetY = 0;
 }
