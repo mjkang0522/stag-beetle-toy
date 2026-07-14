@@ -99,6 +99,12 @@ const animationSettings = {
         frameDelay: 100
     },
 
+    touchToHappy: {
+        state: "touch",
+        frameOrder: [1, 2, 3, 2, 1],
+        frameDelay: 100
+    },
+
     happy: {
         state: "happy",
         frameOrder: [1, 2, 3, 2, 1, 2, 3, 2],
@@ -958,8 +964,10 @@ function finishBeetleInteractionWithHappy() {
     releaseGamePointer(pointerId);
     releaseBeetlePointerCapture(pointerId);
 
-    playAnimation(animationSettings.happy, function() {
-        startIdleState();
+    playAnimation(animationSettings.touchToHappy, function() {
+        playAnimation(animationSettings.happy, function() {
+            startIdleState();
+        });
     });
 }
 
@@ -1025,6 +1033,7 @@ document.addEventListener("pointercancel", cancelBeetleInteraction);
 
 function isJellyDragLocked() {
     return beetleInteraction.activePointerId !== null ||
+        beetle.state === "touch" ||
         beetle.state === "happy" ||
         jelly.isInteractionLocked ||
         feedingLoop.isActive ||
