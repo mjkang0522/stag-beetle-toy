@@ -5,6 +5,14 @@ console.log("우리집 사슴벌레 시작!");
 // ==============================
 
 const beetleImageFolder = "assets/beetle/";
+const soundFolder = "assets/sound/";
+
+const soundFiles = {
+    touch: "beetle_touch.mp3",
+    eatOpen: "beetle_eat_open.mp3",
+    eatChew: "beetle_eat_chew.mp3",
+    happy: "beetle_happy.mp3"
+};
 
 const jellyImages = {
     full: "jelly.png",
@@ -26,6 +34,13 @@ const jellyRespawnSettings = {
 const feedingSettings = {
     finalBiteCount: 3,
     chewRepeatCount: 4
+};
+
+const soundSettings = {
+    touchVolume: 0.7,
+    eatOpenVolume: 0.7,
+    eatChewVolume: 0.7,
+    happyVolume: 0.7
 };
 
 const beetleFrames = {
@@ -178,6 +193,10 @@ const feedingLoop = {
     isActive: false
 };
 
+const followState = {
+    canEatOnArrive: true
+};
+
 const beetleInteraction = {
     activePointerId: null,
     isPointerDown: false,
@@ -201,6 +220,13 @@ let jellyBlinkTimer = null;
 let jellyRespawnTimer = null;
 let jellyFallAnimationId = null;
 let isAppReady = false;
+
+const soundEffects = {
+    touch: createSoundEffect(soundFiles.touch, soundSettings.touchVolume),
+    eatOpen: createSoundEffect(soundFiles.eatOpen, soundSettings.eatOpenVolume),
+    eatChew: createSoundEffect(soundFiles.eatChew, soundSettings.eatChewVolume),
+    happy: createSoundEffect(soundFiles.happy, soundSettings.happyVolume)
+};
 
 // ==============================
 // 이미지 preload
@@ -256,6 +282,48 @@ function decodeImage(image, absoluteImagePath) {
     return image.decode().catch(function(error) {
         console.error("이미지 디코드 실패:", absoluteImagePath, error);
     });
+}
+
+// ==============================
+// 사운드 관리
+// ==============================
+
+function createSoundEffect(fileName, volume) {
+    const audio = new Audio(soundFolder + fileName);
+
+    audio.preload = "auto";
+    audio.volume = volume;
+
+    return audio;
+}
+
+function playSoundEffect(audio) {
+    audio.pause();
+    audio.currentTime = 0;
+
+    const playPromise = audio.play();
+
+    if (playPromise && typeof playPromise.catch === "function") {
+        playPromise.catch(function(error) {
+            console.warn("Sound playback failed:", error);
+        });
+    }
+}
+
+function playTouchSound() {
+    playSoundEffect(soundEffects.touch);
+}
+
+function playEatOpenSound() {
+    playSoundEffect(soundEffects.eatOpen);
+}
+
+function playEatChewSound() {
+    playSoundEffect(soundEffects.eatChew);
+}
+
+function playHappySound() {
+    playSoundEffect(soundEffects.happy);
 }
 
 // ==============================
@@ -598,7 +666,7 @@ function moveBeetleTo(startX, startY, targetX, targetY) {
 // Follow 상태
 // ==============================
 
-function startFollowState() {
+function startFollowState(canEatOnArrive) {
     if (!isAppReady) {
         return;
     }
@@ -609,6 +677,7 @@ function startFollowState() {
 
     clearTimers();
 
+    followState.canEatOnArrive = canEatOnArrive !== false;
     jelly.targetX = jelly.x;
     jelly.targetY = jelly.y;
 
@@ -622,13 +691,13 @@ function startFollowState() {
     const distanceToJelly = getDistance(startX, startY, targetX, targetY);
     const arriveDistance = 7;
 
-    if (distanceToJelly <= arriveDistance) {
+    if (distanceToJelly <= arriveDistance && followState.canEatOnArrive) {
         startFeedingLoop();
         return;
     }
 
     playLoopAnimation(animationSettings.follow);
-    moveBeetleToJelly(startX, startY, targetX, targetY, arriveDistance);
+    moveBeetleToJelly(arriveDistance);
 }
 
 function getDistance(startX, startY, targetX, targetY) {
@@ -638,32 +707,47 @@ function getDistance(startX, startY, targetX, targetY) {
     return Math.sqrt(distanceX * distanceX + distanceY * distanceY);
 }
 
-function moveBeetleToJelly(startX, startY, targetX, targetY, arriveDistance) {
-    const distanceToJelly = getDistance(startX, startY, targetX, targetY);
+function moveBeetleToJelly(arriveDistance) {
     const followSpeed = 8;
-    const moveDuration = distanceToJelly / followSpeed * 1000;
-    const startTime = performance.now();
+    let previousTime = null;
 
     function move(currentTime) {
-        const elapsedTime = currentTime - startTime;
-        let progress = elapsedTime / moveDuration;
-
-        if (progress > 1) {
-            progress = 1;
+        if (previousTime === null) {
+            previousTime = currentTime;
         }
 
-        beetle.x = startX + (targetX - startX) * progress;
-        beetle.y = startY + (targetY - startY) * progress;
+        const elapsedTime = (currentTime - previousTime) / 1000;
+        previousTime = currentTime;
+
+        jelly.targetX = jelly.x;
+        jelly.targetY = jelly.y;
+
+        const targetX = jelly.targetX;
+        const targetY = jelly.targetY;
+        const distanceToJelly = getDistance(beetle.x, beetle.y, targetX, targetY);
+
+        updateBeetleFlip(beetle.x, beetle.y, targetX, targetY);
+
+        if (distanceToJelly <= arriveDistance) {
+            if (followState.canEatOnArrive) {
+                moveAnimationId = null;
+                startFeedingLoop();
+                return;
+            }
+
+            moveAnimationId = requestAnimationFrame(move);
+            return;
+        }
+
+        const moveDistance = Math.min(distanceToJelly, followSpeed * elapsedTime);
+        const progress = moveDistance / distanceToJelly;
+
+        beetle.x = beetle.x + (targetX - beetle.x) * progress;
+        beetle.y = beetle.y + (targetY - beetle.y) * progress;
 
         updateBeetleView();
 
-        const remainingDistance = getDistance(beetle.x, beetle.y, targetX, targetY);
-
-        if (remainingDistance > arriveDistance && progress < 1) {
-            moveAnimationId = requestAnimationFrame(move);
-        } else {
-            startFeedingLoop();
-        }
+        moveAnimationId = requestAnimationFrame(move);
     }
 
     moveAnimationId = requestAnimationFrame(move);
@@ -710,11 +794,13 @@ function playBiteStep(biteCount) {
                 playBiteStep(biteCount + 1);
             });
         } else {
-            playAnimation(animationSettings.happy, function() {
+            playHappyAnimation(function() {
                 blinkEmptyPlate();
             });
         }
     });
+
+    playEatOpenSound();
 }
 
 function playChewRepeats(repeatCount, onComplete) {
@@ -725,6 +811,15 @@ function playChewRepeats(repeatCount, onComplete) {
             onComplete();
         }
     });
+
+    if (repeatCount === 1) {
+        playEatChewSound();
+    }
+}
+
+function playHappyAnimation(onComplete) {
+    playAnimation(animationSettings.happy, onComplete);
+    playHappySound();
 }
 
 function updateJellyImageAfterOpen(biteCount) {
@@ -861,6 +956,7 @@ function startBeetleInteraction(event) {
 
     beetleElement.classList.add("dragging");
     setBeetleHoldingLayer(true);
+    playTouchSound();
     playLoopAnimation(animationSettings.touch);
 }
 
@@ -965,7 +1061,7 @@ function finishBeetleInteractionWithHappy() {
     releaseBeetlePointerCapture(pointerId);
 
     playAnimation(animationSettings.touchToHappy, function() {
-        playAnimation(animationSettings.happy, function() {
+        playHappyAnimation(function() {
             startIdleState();
         });
     });
@@ -1103,6 +1199,7 @@ function startJellyDrag(event) {
     jellyElement.classList.add("dragging");
     setJellyDraggingLayer(true);
     captureJellyPointer(event.pointerId);
+    startFollowState(false);
 }
 
 function moveJelly(event) {
@@ -1151,7 +1248,12 @@ function finishJellyDrag(event, shouldStartFollow) {
     releaseJellyPointerCapture(pointerId);
 
     if (shouldStartFollow && !isJellyDragLocked()) {
-        startFollowState();
+        startFollowState(true);
+        return;
+    }
+
+    if (!shouldStartFollow && beetle.state === "follow" && !followState.canEatOnArrive) {
+        startIdleState();
     }
 }
 
