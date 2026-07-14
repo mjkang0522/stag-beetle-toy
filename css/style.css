@@ -9,6 +9,7 @@ body {
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
 }
 
@@ -28,6 +29,7 @@ body {
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
 }
 
@@ -44,6 +46,7 @@ body {
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
 }
 
@@ -58,6 +61,7 @@ body {
     pointer-events: none;
     user-select: none;
     -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     -webkit-user-drag: none;
 }
@@ -80,6 +84,7 @@ body {
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     transition: opacity 120ms linear;
 }
@@ -98,6 +103,7 @@ body {
 
     user-select: none;
     -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     -webkit-user-drag: none;
     pointer-events: none;
@@ -106,6 +112,7 @@ body {
 #game_screen img {
     user-select: none;
     -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
     -webkit-user-drag: none;
     -webkit-touch-callout: none;
 }
