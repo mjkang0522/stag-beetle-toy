@@ -219,7 +219,10 @@ let moveAnimationId = null;
 let jellyBlinkTimer = null;
 let jellyRespawnTimer = null;
 let jellyFallAnimationId = null;
+let animationToken = 0;
 let isAppReady = false;
+
+const preloadedImages = {};
 
 const soundEffects = {
     touch: createSoundEffect(soundFiles.touch, soundSettings.touchVolume),
@@ -261,8 +264,13 @@ function preloadImage(imagePath) {
         const image = new Image();
         const absoluteImagePath = new URL(imagePath, window.location.href).href;
 
+        image.decoding = "async";
+
         image.onload = function() {
-            decodeImage(image, absoluteImagePath).then(resolve);
+            decodeImage(image, absoluteImagePath).then(function() {
+                preloadedImages[imagePath] = image;
+                resolve();
+            });
         };
 
         image.onerror = function() {
@@ -337,8 +345,10 @@ function updateBeetleView() {
 
     const frameList = beetleFrames[beetle.state];
     const imageFileName = frameList[beetle.currentFrame - 1];
+    const imagePath = beetleImageFolder + imageFileName;
+    const preloadedImage = preloadedImages[imagePath];
 
-    beetleImageElement.src = beetleImageFolder + imageFileName;
+    beetleImageElement.src = preloadedImage ? preloadedImage.src : imagePath;
 }
 
 function updateJellyView() {
@@ -349,7 +359,10 @@ function updateJellyView() {
     jellyElement.style.pointerEvents = jelly.isInteractionLocked || !jelly.isVisible ? "none" : "auto";
     jellyElement.disabled = jelly.isInteractionLocked || !jelly.isVisible;
 
-    jellyImageElement.src = beetleImageFolder + jelly.imageFileName;
+    const imagePath = beetleImageFolder + jelly.imageFileName;
+    const preloadedImage = preloadedImages[imagePath];
+
+    jellyImageElement.src = preloadedImage ? preloadedImage.src : imagePath;
 }
 
 function updateObjectLayers() {
@@ -432,6 +445,8 @@ function preventMultiTouchDefaultAction(event) {
 }
 
 function clearTimers() {
+    animationToken = animationToken + 1;
+
     if (idleTimer !== null) {
         clearTimeout(idleTimer);
         idleTimer = null;
@@ -464,6 +479,15 @@ function clearTimers() {
 }
 
 function playAnimation(animationSetting, onComplete) {
+    animationToken = animationToken + 1;
+
+    if (frameTimer !== null) {
+        clearInterval(frameTimer);
+        frameTimer = null;
+    }
+
+    const currentAnimationToken = animationToken;
+
     beetle.state = animationSetting.state;
     beetle.currentFrame = animationSetting.frameOrder[0];
 
@@ -471,12 +495,20 @@ function playAnimation(animationSetting, onComplete) {
 
     let frameIndex = 0;
 
-    frameTimer = setInterval(function() {
+    const timerId = setInterval(function() {
+        if (currentAnimationToken !== animationToken) {
+            clearInterval(timerId);
+            return;
+        }
+
         frameIndex = frameIndex + 1;
 
         if (frameIndex >= animationSetting.frameOrder.length) {
-            clearInterval(frameTimer);
-            frameTimer = null;
+            clearInterval(timerId);
+
+            if (frameTimer === timerId) {
+                frameTimer = null;
+            }
 
             if (onComplete) {
                 onComplete();
@@ -488,6 +520,8 @@ function playAnimation(animationSetting, onComplete) {
         beetle.currentFrame = animationSetting.frameOrder[frameIndex];
         updateBeetleView();
     }, animationSetting.frameDelay);
+
+    frameTimer = timerId;
 }
 
 // ==============================
@@ -615,6 +649,15 @@ function startWalkAnimation() {
 }
 
 function playLoopAnimation(animationSetting) {
+    animationToken = animationToken + 1;
+
+    if (frameTimer !== null) {
+        clearInterval(frameTimer);
+        frameTimer = null;
+    }
+
+    const currentAnimationToken = animationToken;
+
     beetle.state = animationSetting.state;
     beetle.currentFrame = animationSetting.frameOrder[0];
 
@@ -622,7 +665,12 @@ function playLoopAnimation(animationSetting) {
 
     let frameIndex = 0;
 
-    frameTimer = setInterval(function() {
+    const timerId = setInterval(function() {
+        if (currentAnimationToken !== animationToken) {
+            clearInterval(timerId);
+            return;
+        }
+
         frameIndex = frameIndex + 1;
 
         if (frameIndex >= animationSetting.frameOrder.length) {
@@ -633,6 +681,8 @@ function playLoopAnimation(animationSetting) {
 
         updateBeetleView();
     }, animationSetting.frameDelay);
+
+    frameTimer = timerId;
 }
 
 function moveBeetleTo(startX, startY, targetX, targetY) {
