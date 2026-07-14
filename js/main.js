@@ -316,13 +316,21 @@ function clampNumber(value, min, max) {
 function reserveGamePointer(event) {
     if (gameInput.activePointerId === null) {
         gameInput.activePointerId = event.pointerId;
-        return;
+        return true;
     }
 
-    if (gameInput.activePointerId !== event.pointerId) {
-        event.preventDefault();
-        event.stopPropagation();
+    if (gameInput.activePointerId === event.pointerId) {
+        return true;
     }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.stopImmediatePropagation) {
+        event.stopImmediatePropagation();
+    }
+
+    return false;
 }
 
 function isActiveGamePointer(event) {
@@ -341,6 +349,12 @@ function releaseGamePointerFromEvent(event) {
 
 function preventGameDefaultAction(event) {
     event.preventDefault();
+}
+
+function preventMultiTouchDefaultAction(event) {
+    if (event.touches && event.touches.length > 1) {
+        event.preventDefault();
+    }
 }
 
 function clearTimers() {
@@ -812,6 +826,10 @@ function finishFeedingLoop() {
 // ==============================
 
 function startBeetleInteraction(event) {
+    if (!reserveGamePointer(event)) {
+        return;
+    }
+
     event.preventDefault();
 
     if (!isAppReady) {
@@ -989,6 +1007,9 @@ gameScreenElement.addEventListener("pointerdown", reserveGamePointer, true);
 gameScreenElement.addEventListener("contextmenu", preventGameDefaultAction);
 gameScreenElement.addEventListener("dragstart", preventGameDefaultAction);
 gameScreenElement.addEventListener("selectstart", preventGameDefaultAction);
+gameScreenElement.addEventListener("touchmove", preventMultiTouchDefaultAction, { passive: false });
+document.addEventListener("gesturestart", preventGameDefaultAction, { passive: false });
+document.addEventListener("gesturechange", preventGameDefaultAction, { passive: false });
 document.addEventListener("pointerup", releaseGamePointerFromEvent);
 document.addEventListener("pointercancel", releaseGamePointerFromEvent);
 
@@ -1048,6 +1069,10 @@ function getJellyPositionFromPointer(event) {
 }
 
 function startJellyDrag(event) {
+    if (!reserveGamePointer(event)) {
+        return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
 
