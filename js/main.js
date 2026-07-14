@@ -40,7 +40,8 @@ const soundSettings = {
     touchVolume: 0.7,
     eatOpenVolume: 0.7,
     eatChewVolume: 0.7,
-    happyVolume: 0.7
+    happyVolume: 0.7,
+    preloadTimeout: 1500
 };
 
 const beetleFrames = {
@@ -305,11 +306,72 @@ function createSoundEffect(fileName, volume) {
     return audio;
 }
 
-function playSoundEffect(audio) {
-    audio.pause();
-    audio.currentTime = 0;
+function preloadRequiredSounds() {
+    return waitForSoundReady(soundEffects.touch);
+}
 
-    const playPromise = audio.play();
+function waitForSoundReady(audio) {
+    return new Promise(function(resolve) {
+        if (audio.readyState >= 2) {
+            resolve();
+            return;
+        }
+
+        let isResolved = false;
+        let timeoutId = null;
+
+        function finish() {
+            if (isResolved) {
+                return;
+            }
+
+            isResolved = true;
+
+            clearTimeout(timeoutId);
+            audio.removeEventListener("loadeddata", finish);
+            audio.removeEventListener("canplay", finish);
+            audio.removeEventListener("canplaythrough", finish);
+            audio.removeEventListener("error", finish);
+
+            resolve();
+        }
+
+        audio.addEventListener("loadeddata", finish);
+        audio.addEventListener("canplay", finish);
+        audio.addEventListener("canplaythrough", finish);
+        audio.addEventListener("error", finish);
+
+        timeoutId = setTimeout(finish, soundSettings.preloadTimeout);
+
+        try {
+            audio.load();
+        } catch (error) {
+            finish();
+        }
+    });
+}
+
+function playSoundEffect(audio) {
+    try {
+        audio.pause();
+
+        if (audio.readyState === 0) {
+            audio.load();
+        }
+
+        audio.currentTime = 0;
+    } catch (error) {
+        console.warn("Sound reset failed:", error);
+    }
+
+    let playPromise = null;
+
+    try {
+        playPromise = audio.play();
+    } catch (error) {
+        console.warn("Sound playback failed:", error);
+        return;
+    }
 
     if (playPromise && typeof playPromise.catch === "function") {
         playPromise.catch(function(error) {
@@ -1356,8 +1418,11 @@ function startApplication() {
     startIdleState();
 }
 
-preloadRequiredImages().catch(function(error) {
-    console.error("이미지 preload 중 오류:", error);
+Promise.all([
+    preloadRequiredImages(),
+    preloadRequiredSounds()
+]).catch(function(error) {
+    console.error("리소스 preload 중 오류:", error);
 }).then(function() {
     startApplication();
 });
